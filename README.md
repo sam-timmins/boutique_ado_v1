@@ -122,3 +122,110 @@ cp -r ../.pip-modules/lib/python3.8/site-packages/allauth/templates/* ./template
     * openid
 
 * Create a base.html file in the templates directory and begin creating
+````html
+{% load static %}
+
+<!doctype html>
+<html lang="en">
+  <head>
+    {% block meta %}
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    {% endblock %}
+
+    {% block extra_meta %}
+    {% endblock %}
+
+    {% block corecss %}
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    {% endblock %}
+
+    {% block extra_css %}
+    {% endblock %}
+
+    {% block corejs %}
+        <script src="https://code.jquery.com/jquery-3.4.1.minified.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+    {% endblock %}
+
+    {% block extra_js %}
+    {% endblock %}
+
+    <title>Boutique Ado {% block title %}{% endblock %}</title>
+  </head>
+  <body>
+
+    <header class="container-fluid fixed-top"></header>
+
+    {% if messages %}
+        <div class="message-container"></div>
+    {% endif %}
+
+    {% block page_header %}
+    {% endblock %}
+
+    {% block content %}
+    {% endblock %}
+
+    {% block postloadjs %}
+    {% endblock %}
+
+  </body>
+</html>
+```
+
+* Create a home app
+```
+python3 manage.py startapp home
+```
+
+* Create a templates directory in the home app
+```
+ mkdir -p home/templates/home
+```
+
+* Create an index.html file in the home folder
+```html
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+    <h1 class="display-4 text-success">It works!!</h1>
+{% endblock %}
+```
+
+* Create a view to render the template
+```py
+from django.shortcuts import render
+
+def index(request):
+    """ A view to return the index page """
+
+    return render(request, 'home/index.html')
+
+```
+
+* Create a urls.py file and add...
+```
+from django.contrib import admin
+from django.urls import path, include
+from . import views
+
+urlpatterns = [
+    path('', views.index, name='home'),
+]
+
+```
+
+* Change TEMPLATES in settings.py to 
+
+```py
+        'DIRS': [
+            os.path.join(BASE_DIR, 'templates'),
+            os.path.join(BASE_DIR, 'templates', 'allauth'),
+        ],
+```
+
+* Add the home app to installed app in settings.py
