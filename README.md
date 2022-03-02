@@ -112,5 +112,13 @@ mkdir templates
 mkdir templates/allauth
 ```
 
+* Copy the allauth templates into the allauth folder
+```
+cp -r ../.pip-modules/lib/python3.8/site-packages/allauth/templates/* ./templates/allauth/
+```
 
+* Delete the folder
+    * tests
+    * openid
 
+* Create a base.html file in the templates directory and begin creating
