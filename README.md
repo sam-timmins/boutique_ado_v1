@@ -122,7 +122,8 @@ cp -r ../.pip-modules/lib/python3.8/site-packages/allauth/templates/* ./template
     * openid
 
 * Create a base.html file in the templates directory and begin creating
-````html
+
+```html
 {% load static %}
 
 <!doctype html>
@@ -138,16 +139,12 @@ cp -r ../.pip-modules/lib/python3.8/site-packages/allauth/templates/* ./template
     {% endblock %}
 
     {% block corecss %}
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
     {% endblock %}
 
     {% block extra_css %}
     {% endblock %}
 
     {% block corejs %}
-        <script src="https://code.jquery.com/jquery-3.4.1.minified.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
     {% endblock %}
 
     {% block extra_js %}
@@ -229,3 +226,40 @@ urlpatterns = [
 ```
 
 * Add the home app to installed app in settings.py
+
+* Create new folders....
+```
+mkdir static
+```
+
+```
+mkdir static/css
+```
+
+```
+mkdir media
+```
+
+* Add the file paths to settings.py
+```py
+STATIC_URL = '/static/'
+STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+```
+
+* In the project urls.py
+
+```py
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings # add this
+from django.conf.urls.static import static # add this
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('accounts/', include('allauth.urls')),
+    path('', include('home.urls')),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) # add this
+```
