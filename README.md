@@ -1,7 +1,7 @@
 
 * Install django
 ```
-pip3 install django==3.2 gunicorn
+pip3 install django==3.2
 ```
 
 * Create a project
