@@ -1,21 +1,137 @@
-from django.shortcuts import render, redirect, reverse
-from django.contrib import messages
+import stripe
 
+from django.shortcuts import render, redirect, reverse, get_object_or_404
+from django.contrib import messages
+from django.conf import settings
+
+from products.models import Product
+from bag.contexts import bag_contents
 from .forms import OrderForm
+from .models import OrderLineItem, Order
 
 
 def checkout(request):
-    """ checkout view """
-    bag = request.session.get('bag', {})
-    if not bag:
-        messages.error(request, "There's nothing in your bag at the moment")
-        return redirect(reverse('products'))
+    """ Checkout """
+    # Set the public and secret keys
+    stripe_public_key = settings.STRIPE_PUBLIC_KEY
+    stripe_secret_key = settings.STRIPE_SECRET_KEY
 
-    order_form = OrderForm()
+    #  Handle the post request
+    if request.method == 'POST':
+        bag = request.session.get('bag', {})
+
+        form_data = {
+            'full_name': request.POST['full_name'],
+            'email': request.POST['email'],
+            'phone_number': request.POST['phone_number'],
+            'country': request.POST['country'],
+            'postcode': request.POST['postcode'],
+            'town_or_city': request.POST['town_or_city'],
+            'street_address1': request.POST['street_address1'],
+            'street_address2': request.POST['street_address2'],
+            'county': request.POST['county'],
+        }
+
+        order_form = OrderForm(form_data)
+        #  Check if order form is valid
+        if order_form.is_valid():
+            order = order_form.save()
+
+            for item_id, item_data in bag.items():
+                try:
+                    # Get the product from the bag
+                    product = Product.objects.get(id=item_id)
+                    if isinstance(item_data, int):
+                        order_line_item = OrderLineItem(
+                            order=order,
+                            product=product,
+                            quantity=item_data,
+                        )
+                        order_line_item.save()
+                    else:
+                        for size, quantity in item_data['items_by_size'].items():
+                            order_line_item = OrderLineItem(
+                                order=order,
+                                product=product,
+                                quantity=quantity,
+                                product_size=size,
+                            )
+                            order_line_item.save()
+                # Error message if the product doesn't exist
+                except Product.DoesNotExist:
+                    messages.error(request, (
+                        "One of the products in your bag wasn't "
+                        "found in our database. "
+                        "Please call us for assistance!")
+                    )
+                    order.delete()
+                    return redirect(reverse('view_bag'))
+            # If user decided to save information to the session
+            request.session['save_info'] = 'save-info' in request.POST
+            #  Redirect to checkout-success page
+            print('success page is here')
+            return redirect(reverse('checkout_success',
+                                    args=[order.order_number]))
+
+        # If the order form isn't valid
+        else:
+            messages.error(request, 'There was an issue wiht your form, \
+                please check your infomation')
+    # Handle the get request
+    else:
+        bag = request.session.get('bag', {})
+        if not bag:
+            messages.error(
+                request,
+                "There's nothing in your bag at the moment"
+                )
+            return redirect(reverse('products'))
+        # The grand total rounded and set to an integer
+        current_bag = bag_contents(request)
+        total = current_bag['grand_total']
+        stripe_total = round(total * 100)
+        #  Set the secret key
+        stripe.api_key = stripe_secret_key
+        #  Create payment intent
+        intent = stripe.PaymentIntent.create(
+            amount=stripe_total,
+            currency=settings.STRIPE_CURRENCY,
+        )
+
+        order_form = OrderForm()
+        #  Error message if the public key is missing
+        if not stripe_public_key:
+            messages.warning(request, 'Stripe public key is missing. \
+                Did you forget to set it in your environment?')
+
     template = 'checkout/checkout.html'
+    #  Add keys to context for the template
     context = {
         'order_form': order_form,
-        'stripe_public_key': 'pk_test_51KcomiEiQPls6HV9hB1q0KXJ67Tz5WgwecT7de6pMq2p5xtmiv1m7IdT2mULdUvaVVbNoPzeAkE5pb584yIBdD8N00EsWwgSVG',
+        'stripe_public_key': stripe_public_key,
+        'client_secret': intent.client_secret,
     }
 
     return render(request, template, context)
+
+
+def checkout_success(request, order_number):
+    """ Handles successful checkouts """
+    # Gets the save-info from the session generated from the checkout form
+    save_info = request.session.get('save-info')
+    # Get the order from the order_number sent from the checkout view
+    order = get_object_or_404(Order, order_number=order_number)
+    # Success message with the order number
+    messages.success(request, f'Order succuessfully processed. \
+        Your order number is {order_number}. A confirmation email \
+        will be sent to {order.email}.')
+
+    # Delete users shopping bag from the session
+    if 'bag' in request.session:
+        del request.session['bag']
+
+    context = {
+        'order': order,
+    }
+
+    return render(request, 'checkout/checkout_success.html', context)

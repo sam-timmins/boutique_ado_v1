@@ -263,3 +263,149 @@ urlpatterns = [
     path('', include('home.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) # add this
 ```
+
+
+# Stripe
+
+install stripe and freeze requirements
+
+```
+pip3 install stripe
+```
+
+Add script tag to base.html
+```html
+<script src="https://js.stripe.com/v3/"></script>
+```
+
+In the checkout page, 
+
+```html
+<!-- Give form an id of 'payment-form' and submit button an id of 'submit-button' -->
+<!-- Add 2 divs in form -->
+    <!-- A Stripe card element will go here -->
+    <div class="mb-3" id="card-element"></div>
+
+    <!-- Used to display form errors -->
+    <div class="mb-3 text-danger" id="card-errors" role="alert"></div>
+
+<!-- Add script tags -->
+{% block postloadjs %}
+    {{ block.super }}
+    {{ stripe_public_key|json_script:"id_stripe_public_key" }}
+    {{ client_secret|json_script:"id_client_secret" }}
+    <script src="{% static 'custom script file here' %}"></script>
+{% endblock %}
+```
+
+In the script tag from above
+
+```js
+
+var stripe_public_key = $('#id_stripe_public_key').text().slice(1, -1);
+var client_secret = $('#id_client_secret').text().slice(1, -1);
+
+//  Sets up stripe
+var stripe = Stripe(stripe_public_key);
+var elements = stripe.elements();
+
+// Styles for stripe inputs
+var style = {
+    base: {
+        color: '#000',
+        fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+        fontSmoothing: 'antialiased',
+        fontSize: '16px',
+        '::placeholder': {
+            color: '#aab7c4'
+        }
+    },
+    invalid: {
+        color: '#dc3545',
+        iconColor: '#dc3545'
+    }
+};
+
+
+var card = elements.create('card', {style: style});
+// Mount the card to the div in the template
+card.mount('#card-element');
+
+// Handle realtime validation errors on the card element
+card.addEventListener('change', function (event) {
+    var errorDiv = document.getElementById('card-errors');
+    if (event.error) {
+        var html = `
+            <span class="icon" role="alert">
+                <i class="fa-solid fa-bomb"></i>
+            </span>
+            <span>${event.error.message}</span>
+        `;
+        $(errorDiv).html(html);
+    } else {
+        errorDiv.textContent = '';
+    }
+});
+```
+
+*See css file for stripe's css*
+
+In main settings.py
+
+```py
+# Prevent error when hidden env.py is not found
+if os.path.isfile('env.py'):
+    import env
+
+STRIPE_CURRENCY = 'GBP'
+STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY', '')
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
+```
+
+In env.py
+```py
+os.environ['STRIPE_PUBLIC_KEY'] = 'Key from stripe dashboard here'
+os.environ['STRIPE_SECRET_KEY'] = 'Key from stripe dashboard here'
+```
+
+```py
+
+import stripe
+
+# Import the context file to access the grand_total
+from bag.contexts import bag_contents
+# Import the main settings file for accessing the stripe public and secret keys
+from django.conf import settings
+
+def checkout(request):
+    # Set the public and secret keys
+    stripe_public_key = settings.STRIPE_PUBLIC_KEY
+    stripe_secret_key = settings.STRIPE_SECRET_KEY
+
+
+    # The grand total rounded and set to an integer
+    current_bag = bag_contents(request)
+    total = current_bag['grand_total']
+    stripe_total = round(total * 100)
+
+    #  Set the secret key
+    stripe.api_key = stripe_secret_key
+
+    #  Error message if the public key is missing
+    if not stripe_public_key:
+        messages.warning(request, 'Stripe public key is missing. Did you forget to set it in your environment?')
+
+    #  Create payment intent
+    intent = stripe.PaymentIntent.create(
+        amount=stripe_total,
+        currency=settings.STRIPE_CURRENCY,
+        )
+
+    #  Add keys to context for the template
+    context = {
+        'stripe_public_key': stripe_public_key,
+        'client_secret': intent.client_secret,
+    }
+```
+
+
