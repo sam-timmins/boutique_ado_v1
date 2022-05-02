@@ -358,14 +358,16 @@ if os.path.isfile('env.py'):
     import env
 
 STRIPE_CURRENCY = 'GBP'
-STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY', '')
-STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
+STRIPE_WH_SECRET = os.environ.get('STRIPE_WH_SECRET')
 ```
 
 In env.py
 ```py
 os.environ['STRIPE_PUBLIC_KEY'] = 'Key from stripe dashboard here'
 os.environ['STRIPE_SECRET_KEY'] = 'Key from stripe dashboard here'
+os.environ['STRIPE_WH_SECRET'] = 'This is filled in later'
 ```
 
 ```py
@@ -408,4 +410,129 @@ def checkout(request):
     }
 ```
 
+
+## Webhooks
+
+Create a file in the checkout app called webhook_handler.py and add
+
+```py
+from django.http import HttpResponse
+
+
+class StripeWHHandler:
+    """Handle Stripe webhooks"""
+
+    def __init__(self, request):
+        self.request = request
+
+    def handle_event(self, event):
+        """
+        Handle a generic/unknown/unexpected webhook event
+        """
+        return HttpResponse(
+            content=f'Unhandled webhook received: {event["type"]}',
+            status=200)
+
+    def handle_payment_intent_succeeded(self, event):
+        """
+        Handle the payment intent succeeded webhook from Stripe
+        """
+        return HttpResponse(
+            content=f'Webhook received: {event["type"]}',
+            status=200)
+
+    def handle_payment_intent_failed(self, event):
+        """
+        Handle the payment intent failed webhook from Stripe
+        """
+        return HttpResponse(
+            content=f'Webhook received: {event["type"]}',
+            status=200)
+```
+
+In the checkout urls.py add a path
+```py
+from .webhooks import webhook
+
+path('wh/', webhook, name='webhook')
+```
+
+
+Create a file at same level as the webhook_handler.py and urls.py
+```py
+import stripe
+
+from django.conf import settings
+from django.http import HttpResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+
+from checkout.webhook_handler import StripeWHHandler
+
+
+@require_POST
+@csrf_exempt
+def webhook(request):
+    """Listen for webhooks from Stripe"""
+    # Setup
+    wh_secret = settings.STRIPE_WH_SECRET
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    # Get the webhook data and verify its signature
+    payload = request.body
+    sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+    event = None
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, wh_secret
+            )
+    except ValueError as e:
+        # Invalid payload
+        return HttpResponse(status=400)
+    except stripe.error.SignatureVerificationError as e:
+        # Invalid signature
+        return HttpResponse(status=400)
+    except Exception as e:
+        return HttpResponse(content=e, status=400)
+
+    # Set up a webhook handler
+    # handler = StripeWHHandler(request)
+
+    # Map webhook events to relevant handler functions
+    # event_map = {
+    #     'payment_intent.succeeded':
+    #     handler.handle_payment_intent_succeeded,
+    #     'payment_intent.payment_failed':
+    #     handler.handle_payment_intent_failed,
+    # }
+
+    # Get the webhook type from Stripe
+    # event_type = event['type']
+
+    # If there's a handler for it, get it from the event map
+    # Use the generic one by default
+    # event_handler = event_map.get(event_type, handler.handle_event)
+
+    # Call the event handler with the event
+    # response = event_handler(event)
+    # return response
+
+
+    # Testing to get Signing Secrete from Stripe
+    print('Success!')
+    return HttpResponse(status=200)
+
+```
+
+Open the site up on the live server and copy the url.
+Go the the stripe dashdord
+* then developers
+* then webhooks
+* then Add endpoint
+* paste in the url adding '/checkout/wh/' to the end
+* recieve all events
+* Add endpoint at the bottom of the page
+* Copy the signing secret
+* Add to the env.py file (and settings if not done already)
 
