@@ -370,6 +370,8 @@ os.environ['STRIPE_SECRET_KEY'] = 'Key from stripe dashboard here'
 os.environ['STRIPE_WH_SECRET'] = 'This is filled in later'
 ```
 
+In views.py
+
 ```py
 
 import stripe
